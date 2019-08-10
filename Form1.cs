@@ -8,6 +8,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Windows.Forms;
+using static System.Windows.Forms.ListView;
 
 namespace EmailAddressExtracter
 {
@@ -31,49 +32,76 @@ namespace EmailAddressExtracter
             }
         }
 
-        ProcessStartInfo startInfo = new ProcessStartInfo();
-
-        private void ExtractEmailAddressButton_Click(object sender, EventArgs e)
+        private ProcessStartInfo grepStartInfo(string fileName)
         {
-            MessageBoxButtons buttons = MessageBoxButtons.OK;
-            if (!ofd.CheckFileExists)
-            {
-                MessageBox.Show("Invalid file", "test", buttons);
-                return;
-            }
+            ProcessStartInfo startInfo = new ProcessStartInfo();
             startInfo.FileName = "grep.exe";
             startInfo.RedirectStandardOutput = true;
             startInfo.UseShellExecute = false;
             startInfo.CreateNoWindow = true;
             startInfo.Arguments = "-a -o -P \"(?<name>[\\w.]+)\\@(?<domain>\\w+\\.\\w+)(\\.\\w+)?\" "
-                                    + '"' + ofd.FileName +'"';
-
-            Console.WriteLine("Grep arguments: " + startInfo.Arguments);
+                                    + '"' + fileName + '"';
+            return startInfo;
+        }
+        private string[] getTextfromProcess(ProcessStartInfo startInfo)
+        {
+            string[] text = null;
             using (Process process = Process.Start(startInfo))
             {
                 using (StreamReader reader = process.StandardOutput)
                 {
-                    string result = reader.ReadToEnd();
-                    emailListView.View = View.Details;
-                    emailListView.GridLines = true;
-                    emailListView.Columns.Add("Email", -2, HorizontalAlignment.Left);
-                    string[] emails = result.Split('\n');
-                    Console.WriteLine("emails Count" + emails.Length.ToString());
-                    foreach(string x in emails)
-                    {
-                        emailListView.Items.Add(x);
-                    }
-                    if(emails.Length > 0)
-                    {
-                        emailCountLabel.Text = "Email Count: " + emails.Length;
-                        downloadEmailAddressButton.Enabled = true;
-                    }
+                    text = reader.ReadToEnd().Split('\n').Where(x => x.Trim().Length > 0).ToArray();
                 }
+            }
+            return text;
+        }
+        private void populateEmailView(ListView listView, string[] emails)
+        {
+            listView.Clear();
+            listView.View = View.Details;
+            listView.GridLines = true;
+            listView.Columns.Add("Email", -2, HorizontalAlignment.Left);
+
+            foreach (string x in emails)
+            {
+                listView.Items.Add(x);
+            }
+        }
+        private void ExtractEmailAddressButton_Click(object sender, EventArgs e)
+        {
+            if (!ofd.CheckFileExists)
+            {
+                MessageBox.Show("Invalid file: " + ofd.FileName);
+                return;
+            }
+            ProcessStartInfo startInfo = grepStartInfo(ofd.FileName);
+            Console.WriteLine("Grep arguments: " + startInfo.Arguments);
+            string[] emails = getTextfromProcess(startInfo);
+            Console.WriteLine("extract email Count" + emails.Length.ToString());
+
+            populateEmailView(emailListView, emails);
+
+            if (emails.Length > 0)
+            {
+                emailCountLabel.Text = "Email Count: " + emails.Length;
+                downloadEmailAddressButton.Enabled = true;
+            }
+            else
+            {
+                emailCountLabel.Text = "No Emails found";
             }
         }
 
         SaveFileDialog sfd = new SaveFileDialog();
-
+        private List<string> cleanEmails(ListView emailListView, ListView badEmailListView)
+        {
+            List<ListViewItem> lv = emailListView.Items.Cast<ListViewItem>().ToList();
+            var emails = from email in emailListView.Items.Cast<ListViewItem>()
+                         select email.Text.Trim();
+            var badEmails = from email in badEmailListView.Items.Cast<ListViewItem>()
+                         select email.Text.Trim();
+            return emails.Except(badEmails).ToList();
+        }
         private void DownloadEmailAddressButton_Click(object sender, EventArgs e)
         {
             sfd.Title = "Save Emails";
@@ -82,14 +110,36 @@ namespace EmailAddressExtracter
             {
                 using (Stream myStream = sfd.OpenFile())
                 {
-                    using(StreamWriter sw = new StreamWriter(myStream))
-                    foreach (ListViewItem item in emailListView.Items)
+                    using (StreamWriter sw = new StreamWriter(myStream))
                     {
-                        sw.WriteLine(item.Text.Trim());
+                        List<string> emails = cleanEmails(emailListView, badEmailListView);
+                        emails.ForEach(x => sw.WriteLine(x));
+                        Console.WriteLine("Downloading emails: " + emails.Count);
                     }
                     MessageBox.Show("Download Complete");
                 }
             }
+        }
+
+        OpenFileDialog badEmailsOpenFileDialog = new OpenFileDialog();
+        private void BadEmailsButton_Click(object sender, EventArgs e)
+        {
+            if (badEmailsOpenFileDialog.ShowDialog() != DialogResult.OK)
+            {
+                return;
+            }
+            badEmailsSelection.Text = ofd.FileName;
+
+            if (!badEmailsOpenFileDialog.CheckFileExists)
+            {
+                MessageBox.Show("Invalid file: " + badEmailsOpenFileDialog.FileName);
+                return;
+            }
+
+            ProcessStartInfo startInfo = grepStartInfo(badEmailsOpenFileDialog.FileName);
+            Console.WriteLine("Bad Emails Grep arguments: " + startInfo.Arguments);
+            string[] badEmails = getTextfromProcess(startInfo);
+            populateEmailView(badEmailListView, badEmails);
         }
     }
 }
