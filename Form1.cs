@@ -76,14 +76,15 @@ namespace EmailAddressExtracter
             }
             ProcessStartInfo startInfo = grepStartInfo(ofd.FileName);
             Console.WriteLine("Grep arguments: " + startInfo.Arguments);
-            string[] emails = getTextfromProcess(startInfo);
-            Console.WriteLine("extract email Count" + emails.Length.ToString());
+            var emails = new HashSet<string>(getTextfromProcess(startInfo)).ToList();
+            emails.Sort();
+            Console.WriteLine("extract email Count" + emails.Count);
 
-            populateEmailView(emailListView, emails);
+            populateEmailView(emailListView, emails.ToArray());
 
-            if (emails.Length > 0)
+            if (emails.Count > 0)
             {
-                emailCountLabel.Text = "Email Count: " + emails.Length;
+                emailCountLabel.Text = "Unique Email Count: " + emails.Count;
                 downloadEmailAddressButton.Enabled = true;
             }
             else

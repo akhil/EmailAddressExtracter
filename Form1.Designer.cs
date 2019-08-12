@@ -93,9 +93,9 @@
             this.emailCountLabel.AutoSize = true;
             this.emailCountLabel.Location = new System.Drawing.Point(98, 179);
             this.emailCountLabel.Name = "emailCountLabel";
-            this.emailCountLabel.Size = new System.Drawing.Size(95, 20);
+            this.emailCountLabel.Size = new System.Drawing.Size(150, 20);
             this.emailCountLabel.TabIndex = 5;
-            this.emailCountLabel.Text = "Email Count";
+            this.emailCountLabel.Text = "Unique Email Count";
             // 
             // badEmailsButton
             // 
